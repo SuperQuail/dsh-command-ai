@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "CommandCode Provider",
+    "description": "Endpoint-aware CommandCode models with isolated Responses summary compatibility."
+  }
+}

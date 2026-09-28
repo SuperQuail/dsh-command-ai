@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "CommandCode 提供商",
+    "description": "独立的 CommandCode 模型提供商；按官方端点路由，兼容不接受 reasoning.summary 的中转。"
+  }
+}

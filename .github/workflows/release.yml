@@ -1,0 +1,65 @@
+name: Check and package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    env:
+      DSH_RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+          run_install: false
+      # These checks use Node built-ins and mocked remotes; no DSH checkout,
+      # dependency installation, install scripts or real credentials are needed.
+      - name: Verify committed browser bundle and package metadata
+        run: npm run check
+      - name: Run standalone tests
+        run: npm test
+      - name: Pack and verify the actual archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          pnpm pack --pack-destination artifacts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = node -p "require('./package.json').version"
+          node scripts/check-package.mjs "artifacts/dsh-command-ai-$version.tgz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-command-ai-package
+          path: artifacts/*.tgz
+          if-no-files-found: error
+
+  attach-release:
+    if: github.event_name == 'release'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-command-ai-package
+          path: artifacts
+      - name: Attach prebuilt tarball to the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/*.tgz --clobber

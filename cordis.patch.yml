@@ -1,0 +1,8 @@
+- insert:
+    - id: llm-commandcode
+      name: dsh-command-ai
+      config:
+        apiKeyEnv: CMD_API_KEY
+        baseURL: https://api.commandcode.ai/provider/v1
+        preferResponses: false
+        omitReasoningSummary: true
