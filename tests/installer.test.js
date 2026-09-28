@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,7 +13,9 @@ const supported = powershell.status === 0 && Number(powershell.stdout.trim()) >=
 const options = { skip: !supported }
 
 function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'commandcode-archive-test-'))
+  // Windows CI may expose TEMP through an 8.3 alias (RUNNER~1). The installer
+  // resolves physical paths; derive expected paths from the same physical root.
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'commandcode-archive-test-')))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const home = join(root, 'test-dsh-home')
   const profile = join(home, 'profiles', 'web')
