@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { BASE_URL, buildModels, createProvider, normalizeBaseURL, sanitizePayload, selectApi } from '../src/provider.js'
+import { BASE_URL, buildModels, createProvider, normalizeBaseURL, sanitizePayload, selectApi, toTranscript } from '../src/provider.js'
 
 const catalog = JSON.parse(await readFile(new URL('../src/catalog.json', import.meta.url), 'utf8'))
 const reference = JSON.parse(await readFile(new URL('../src/cli-reference.json', import.meta.url), 'utf8'))
@@ -54,18 +54,39 @@ test('only reasoning.summary is stripped; effort, replay and tool schemas remain
 
 test('SDK hook composition preserves previous payload transforms and options', async () => {
   let observed
-  const api = { streamSimple: (_model, _context, options) => { observed = options; return 'stream' } }
+  const api = { streamSimple: (_model, context, options) => { observed = { context, options }; return 'stream' } }
   const provider = createProvider([], { 'openai-responses': api }, {})
   const model = { api: 'openai-responses' }
-  assert.equal(provider.streamSimple(model, {}, {
+  const messages = [{ role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: 3 }]
+  assert.equal(provider.streamSimple(model, { systemPrompt: 'prompt', messages }, {
     apiKey: 'test-only', maxRetries: 0,
     onPayload: payload => ({ ...payload, extra: 42 }),
   }), 'stream')
-  assert.equal(observed.apiKey, 'test-only')
-  assert.equal(observed.maxRetries, 0)
-  assert.deepEqual(await observed.onPayload({ reasoning: { effort: 'high', summary: 'auto' } }, model), {
+  assert.deepEqual(observed.context.messages[0], { role: 'system', content: 'prompt', timestamp: 0 })
+  assert.equal(observed.context.messages[1], messages[0])
+  assert.equal(observed.options.apiKey, 'test-only')
+  assert.equal(observed.options.maxRetries, 0)
+  assert.deepEqual(await observed.options.onPayload({ reasoning: { effort: 'high', summary: 'auto' } }, model), {
     reasoning: { effort: 'high' }, extra: 42,
   })
+})
+
+test('prompt contexts fold into the transcript shape the APIs consume', () => {
+  const messages = [{ role: 'user', content: [{ type: 'text', text: 'hello' }], timestamp: 3 }]
+  const tools = [{ name: 'edit', description: 'edit a file', parameters: { type: 'object' } }]
+  assert.deepEqual(toTranscript({ systemPrompt: 'prompt', messages, tools }), {
+    messages: [{ role: 'system', content: 'prompt', toolsAdded: tools, timestamp: 0 }, ...messages],
+  })
+  // A tool list without a prompt still travels on the leading system message.
+  assert.deepEqual(toTranscript({ systemPrompt: '', messages, tools }), {
+    messages: [{ role: 'system', content: '', toolsAdded: tools, timestamp: 0 }, ...messages],
+  })
+  // Nothing to fold leaves the host's own shape untouched, transcript included.
+  const flat = { systemPrompt: '', messages, tools: [] }
+  assert.equal(toTranscript(flat), flat)
+  const transcript = { messages }
+  assert.equal(toTranscript(transcript), transcript)
+  assert.equal(toTranscript(undefined), undefined)
 })
 
 test('explicit model metadata and complete reasoning capability maps', () => {
@@ -95,6 +116,9 @@ test('manifest and patch declare only an additive provider', async () => {
   const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(manifest.scripts.postinstall, undefined)
+  // The host's pi-ai collection folds the prompt context before it dispatches;
+  // the APIs this provider hands it must come from the same generation.
+  assert.equal(manifest.dependencies['@earendil-works/pi-ai'], '^0.87.1')
   const patch = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
   assert.match(patch, /^- insert:/)
   assert.match(patch, /id: llm-commandcode/)

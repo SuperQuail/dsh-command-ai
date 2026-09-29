@@ -121,6 +121,34 @@ export function buildModels(catalog, config) {
   })
 }
 
+/**
+ * Accept either prompt-context shape and hand the APIs a transcript.
+ *
+ * pi-ai 0.87 replaced the flat context (`systemPrompt` and `tools` beside
+ * `messages`) with a transcript whose leading system message carries both, so
+ * its collection folds a flat context before dispatching. This provider calls
+ * the APIs directly, and a host on the older adapter lineage still hands a flat
+ * context over: fold it exactly as the collection does. An already-folded
+ * transcript passes through untouched, which keeps the current host on its own
+ * normalization path.
+ * @param context - the prompt context a host handed to a provider stream.
+ * @returns the transcript this build's APIs expect.
+ */
+export function toTranscript(context) {
+  if (context === null || typeof context !== 'object' || Array.isArray(context)) return context
+  const systemPrompt = typeof context.systemPrompt === 'string' ? context.systemPrompt : ''
+  const tools = Array.isArray(context.tools) ? context.tools : []
+  if (systemPrompt.length === 0 && tools.length === 0) return context
+  return {
+    messages: [
+      // An omitted `toolsAdded` is what the collection's own fold produces for
+      // an empty tool list; a present-but-empty one would redeclare nothing.
+      { role: 'system', content: systemPrompt, ...(tools.length > 0 ? { toolsAdded: tools } : {}), timestamp: 0 },
+      ...(Array.isArray(context.messages) ? context.messages : []),
+    ],
+  }
+}
+
 /** Remove only the request-control field, never input[].summary or a tool's summary property. */
 export function sanitizePayload(payload, model, omitSummary = true) {
   if (!omitSummary || model.api !== 'openai-responses' || !payload || typeof payload !== 'object') return payload
@@ -132,7 +160,7 @@ export function sanitizePayload(payload, model, omitSummary = true) {
 export function createProvider(models, apis, config) {
   const dispatch = (method, model, context, options = {}) => {
     const originalHook = options.onPayload
-    return apis[model.api][method](model, context, {
+    return apis[model.api][method](model, toTranscript(context), {
       ...options,
       onPayload: async (payload, resolvedModel) => {
         const previous = await originalHook?.(payload, resolvedModel)
