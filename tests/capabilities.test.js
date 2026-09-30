@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createClientPlugin } from '../src/client.js'
 import reference from '../src/cli-reference.json' with { type: 'json' }
 import catalog from '../src/catalog.json' with { type: 'json' }
-import { buildModels } from '../src/provider.js'
+import { DEFAULT_MAX_TOKENS, buildModels } from '../src/provider.js'
 const id = 'gpt-6-astra'
 const helpers = createClientPlugin({}, catalog.data, reference).helpers
 const fresh = () => helpers.modelDraft({}, id)
@@ -51,7 +51,7 @@ test('clearing levels really removes reasoning controls and blank limits inherit
   assert.equal(model.reasoning, false)
   assert.equal(model.thinkingLevelMap, undefined)
   assert.deepEqual(model.input, ['text'])
-  assert.equal(model.maxTokens, 8192)
+  assert.equal(model.maxTokens, DEFAULT_MAX_TOKENS)
   assert.equal(model.contextWindow, catalog.data.find(row => row.id === id).context_length)
 })
 

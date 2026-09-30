@@ -1,9 +1,23 @@
 {
-  "source": "command-code@1.66.0",
-  "url": "https://registry.npmjs.org/command-code/-/command-code-1.66.0.tgz",
-  "integrity": "sha512-C1O3FPWnJ+/XcnQ6fKg7QH8ZeKaVn/GtynNp5v0U3P0YfFOMD/F3dlSlNUooCjmghtFTM/hR7P+ZwXShno3wjA==",
+  "source": "command-code@1.72.4",
+  "url": "https://registry.npmjs.org/command-code/-/command-code-1.72.4.tgz",
+  "integrity": "sha512-UFW3CmOQxJeaalEgUE81EdsMwgzt1t5GssM+pszm+t59BYXKpKPImhzxvPClp+VxEEHENuBhrXbgZKG8t2+psg==",
   "note": "CLI declarations, not verified Provider API capabilities. Exact-ID defaults; explicit user overrides take priority.",
   "models": {
+    "claude-sonnet-5-5": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1000000,
+      "reasoningEfforts": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+        "xhigh": "xhigh",
+        "max": "max"
+      }
+    },
     "claude-sonnet-5": {
       "input": [
         "text",
@@ -124,6 +138,20 @@
       "contextWindow": 200000
     },
     "gpt-6-astra": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1050000,
+      "reasoningEfforts": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high",
+        "xhigh": "xhigh",
+        "max": "max"
+      }
+    },
+    "gpt-6.1-sol": {
       "input": [
         "text",
         "image"
@@ -301,6 +329,18 @@
       }
     },
     "deepseek/deepseek-v4.1-flash": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1000000,
+      "reasoningEfforts": {
+        "low": "low",
+        "high": "high",
+        "max": "max"
+      }
+    },
+    "deepseek/deepseek-v4.1-flash-fast": {
       "input": [
         "text",
         "image"
@@ -756,6 +796,18 @@
       ],
       "contextWindow": 262144,
       "maxTokens": 32768
+    },
+    "inclusionai/ling-3.1-flash:free": {
+      "input": [
+        "text"
+      ],
+      "contextWindow": 262144,
+      "maxTokens": 32768,
+      "reasoningEfforts": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high"
+      }
     },
     "meta/muse-spark-1.1": {
       "input": [

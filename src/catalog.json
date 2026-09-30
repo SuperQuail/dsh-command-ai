@@ -2,6 +2,17 @@
   "object": "list",
   "data": [
     {
+      "id": "claude-sonnet-5-5",
+      "object": "model",
+      "created": 1790744394,
+      "owned_by": "command-code",
+      "name": "Claude Sonnet 5.5",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/messages"
+      ]
+    },
+    {
       "id": "claude-sonnet-5",
       "object": "model",
       "created": 1790560212,
@@ -106,6 +117,18 @@
       "created": 1790560212,
       "owned_by": "command-code",
       "name": "GPT-6 Astra",
+      "context_length": 1050000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    },
+    {
+      "id": "gpt-6.1-sol",
+      "object": "model",
+      "created": 1790744394,
+      "owned_by": "command-code",
+      "name": "GPT-6.1 Sol",
       "context_length": 1050000,
       "supported_endpoints": [
         "/chat/completions",
@@ -273,6 +296,18 @@
       "created": 1790560212,
       "owned_by": "command-code",
       "name": "DeepSeek V4.1 Flash",
+      "context_length": 1000000,
+      "supported_endpoints": [
+        "/chat/completions",
+        "/responses"
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash-fast",
+      "object": "model",
+      "created": 1790744394,
+      "owned_by": "command-code",
+      "name": "DeepSeek V4.1 Flash Fast",
       "context_length": 1000000,
       "supported_endpoints": [
         "/chat/completions",
@@ -867,6 +902,17 @@
       "created": 1790560212,
       "owned_by": "command-code",
       "name": "Ling 3.0 Flash Sante",
+      "context_length": 262144,
+      "supported_endpoints": [
+        "/chat/completions"
+      ]
+    },
+    {
+      "id": "inclusionai/ling-3.1-flash:free",
+      "object": "model",
+      "created": 1790744394,
+      "owned_by": "command-code",
+      "name": "Ling 3.1 Flash",
       "context_length": 262144,
       "supported_endpoints": [
         "/chat/completions"

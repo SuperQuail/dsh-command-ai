@@ -162,3 +162,58 @@ test('built browser artifact includes current source and every catalogue model',
   assert(code.includes(createClientPlugin.toString()), 'run npm run build after editing client source')
   for (const model of catalog.data) assert(code.includes(JSON.stringify(model.id)))
 })
+
+test('card panel keeps one collapsed disclosure holding the key, limits and actions', async () => {
+  let module
+  const code = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  runInNewContext(code, { window: { __ModuleLoader__: { load: value => { module = value } } }, URL })
+  // Minimal React shim: the first hook call is the loaded settings state, every
+  // later one takes its own initial value, and effects never run.
+  const queue = [{ writable: true, credential: { configured: true, writable: true }, config: {}, view: { revision: 1 } }]
+  const React = {
+    Fragment: Symbol('Fragment'),
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat() }),
+    useState: initial => [queue.length > 0 ? queue.shift() : (typeof initial === 'function' ? initial() : initial), () => {}],
+    useEffect: () => {},
+    useSyncExternalStore: () => ({}),
+  }
+  const client = module.factory(name => { assert.equal(name, 'react'); return React })
+  let registration
+  const bound = []
+  client.apply({
+    effect: () => () => {},
+    locale: { register: () => () => {}, bind: () => key => { bound.push(key); return key } },
+    slots: { inject: (_name, callback) => callback(), register: (_options, component) => { registration = { component } } },
+    remote: {},
+  })
+  const tree = registration.component({ provider: { displayName: 'CommandCode', settingsNs: ns } })
+
+  const collect = node => {
+    const found = []
+    const walk = value => {
+      if (Array.isArray(value)) { value.forEach(walk); return }
+      if (value === null || typeof value !== 'object' || value.type === undefined) return
+      found.push(value)
+      value.children.forEach(walk)
+    }
+    walk(node)
+    return found
+  }
+  const elements = collect(tree)
+  const panels = elements.filter(element => element.props.className === 'cc-panel')
+  assert.equal(panels.length, 1)
+  const panel = panels[0]
+  assert.equal(panel.type, 'details')
+  assert.equal(panel.props.open, undefined, 'the plugin form must start collapsed')
+  assert.equal(panel.children[0].type, 'summary')
+  assert.equal(panel.children[0].children[0], 'title')
+  // The card header already names the provider: no second hand-written title or hint.
+  assert.equal(elements.some(element => element.type === 'h3' && element.children.includes('title')), false)
+  assert.equal(bound.includes('help'), false)
+  const inside = collect(panel)
+  assert.equal(inside.some(element => element.type === 'input' && element.props.type === 'password'), true)
+  assert.equal(inside.some(element => element.type === 'input' && element.props.placeholder === '32768'), true)
+  assert.equal(inside.some(element => element.type === 'button' && element.props.type === 'submit'), true)
+  assert.equal(inside.some(element => element.type === 'h3' && element.children[0] === 'capabilities'), true)
+  assert.equal(elements.some(element => element.type === 'style'), true)
+})

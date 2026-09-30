@@ -8,6 +8,12 @@ export const ENDPOINTS = {
   'anthropic-messages': '/messages',
 }
 const LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+/**
+ * Output ceiling for a model that declares none. Only a handful of directory
+ * entries carry an output limit, so an unconfigured deployment would otherwise
+ * cap every other model at a far smaller budget.
+ */
+export const DEFAULT_MAX_TOKENS = 32768
 
 export function validModelId(id) {
   return typeof id === 'string' && id.length > 0 && id.length <= 512 && !/[\s\x00-\x1f\x7f]/.test(id) && !['__proto__', 'prototype', 'constructor'].includes(id)
@@ -106,7 +112,7 @@ export function buildModels(catalog, config) {
       reasoning: Boolean(reasoning),
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       contextWindow: positiveInteger(override.contextWindow ?? row.context_length, `${row.id} contextWindow`),
-      maxTokens: positiveInteger(override.maxTokens ?? config.defaultMaxTokens ?? 8192, `${row.id} maxTokens`),
+      maxTokens: positiveInteger(override.maxTokens ?? config.defaultMaxTokens ?? DEFAULT_MAX_TOKENS, `${row.id} maxTokens`),
       // Not price claims: PiAiAdapter exposes usage counts, not monetary cost.
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       ...(api === 'openai-completions' ? { compat: {

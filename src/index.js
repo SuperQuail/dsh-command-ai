@@ -6,7 +6,7 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import catalog from './catalog.json' with { type: 'json' }
-import { BASE_URL, PROVIDER, buildModels, createProvider } from './provider.js'
+import { BASE_URL, DEFAULT_MAX_TOKENS, PROVIDER, buildModels, createProvider } from './provider.js'
 import { discoverModels } from './discovery.js'
 
 export const name = 'llm-commandcode'
@@ -26,7 +26,7 @@ const profileFields = {
   preferResponses: z.boolean().default(false),
   omitReasoningSummary: z.boolean().default(true),
   zeroDataRetention: z.boolean().default(false),
-  defaultMaxTokens: z.number().step(1).min(1).default(8192),
+  defaultMaxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
   timeoutMs: z.number().step(1).min(1).max(2147483647).default(120000),
   streamIdleTimeoutMs: z.number().step(1).min(1).max(2147483647).default(300000),
   models: z.array(z.object({ id: z.string().required(), ...modelFields })).default([]),

@@ -4,9 +4,12 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
   const NS = 'commandcode.settings'
   const ROUTE = 'commandcode'
   const BASE = 'https://api.commandcode.ai/provider/v1'
+  // Output budget for a model that declares no limit; mirrors DEFAULT_MAX_TOKENS
+  // in src/provider.js, which this standalone bundle cannot import.
+  const DEFAULT_OUTPUT = 32768
   const dictionaries = {
     en: {
-      title: 'CommandCode settings', help: 'Configure this provider here, then use Save CommandCode below. The generic editor above only supports built-in adapters.',
+      title: 'CommandCode settings',
       loading: 'Loading configuration…', key: 'API key', stored: 'Stored securely; leave blank to keep it', missing: 'Enter your CommandCode API key',
       locked: 'This credential is supplied by the environment and cannot be changed here.', endpoint: 'API base URL',
       advanced: 'Advanced settings', responses: 'Prefer Responses (otherwise Chat Completions; Claude uses Messages)',
@@ -21,7 +24,7 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
       catalogue: 'Models come from the bundled official catalogue; saving does not call a paid API.',
     },
     zh: {
-      title: 'CommandCode 配置', help: '在此填写后点击下方“保存 CommandCode”。上方通用编辑器仅适用于内置适配器。',
+      title: 'CommandCode 配置',
       loading: '正在加载配置…', key: 'API 密钥', stored: '已安全保存；留空保留现有密钥', missing: '输入 CommandCode API Key',
       locked: '此密钥由环境变量提供，不能在这里修改。', endpoint: 'API 基地址',
       advanced: '自定义设置', responses: '优先使用 Responses（否则使用 Chat Completions；Claude 始终走 Messages）',
@@ -40,6 +43,7 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
   const capabilityFields = ['contextWindow', 'maxTokens', 'input', 'reasoningEfforts']
   Object.assign(dictionaries.en, {
     capabilities: 'Model capabilities', context: 'Context window', output: 'Maximum output tokens',
+    defaultOutput: 'Default maximum output tokens; used by models that declare no limit',
     sizes: 'Blank inherits defaults. Accepts integers, K or M (1K = 1000).', text: 'Text', image: 'Images',
     thinking: 'Supported thinking levels', wire: 'Upstream value',
     capabilityHint: 'Enable only capabilities supported by your upstream. Unchecked levels are unavailable, not “thinking off”. Selecting a level happens in the chat model picker after saving.',
@@ -47,13 +51,14 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
   })
   Object.assign(dictionaries.zh, {
     capabilities: '模型能力配置', context: '上下文窗口', output: '最大输出 token 数',
+    defaultOutput: '默认最大输出 token；未声明上限的模型使用该值',
     sizes: '留空继承默认值；支持整数、K、M（1K = 1000）。', text: '文本', image: '图片',
     thinking: '支持的思考档位', wire: '上游值',
     capabilityHint: '只启用上游实际支持的能力。未勾选的档位不可选，不代表关闭思考。保存后在聊天模型选择器中选择思考等级。',
     noThinking: '未声明档位，请求使用上游默认行为。', invalidCapabilities: '请检查模型容量和思考映射：容量必须是正整数，上游值不能为空。',
   })
-  Object.assign(dictionaries.en, { useReference: 'Apply official CLI reference', referenceHint: 'Defaults follow command-code@1.66.0 for exact matching model IDs; your explicit settings take priority. CLI declarations are not Provider API test results.', inherit: 'Restore inherited capabilities', unknown: 'Unknown', unsupported: 'No CLI reference for this model' })
-  Object.assign(dictionaries.zh, { useReference: '应用官方 CLI 参考值', referenceHint: '同名模型默认采用 command-code@1.66.0 声明的能力，手动设置优先。这是 CLI 声明，不是 Provider API 实测结果。', inherit: '恢复继承的能力', unknown: '未知', unsupported: '此模型暂无 CLI 参考数据' })
+  Object.assign(dictionaries.en, { useReference: 'Apply official CLI reference', referenceHint: 'Defaults follow command-code@1.72.4 for exact matching model IDs; your explicit settings take priority. CLI declarations are not Provider API test results.', inherit: 'Restore inherited capabilities', unknown: 'Unknown', unsupported: 'No CLI reference for this model' })
+  Object.assign(dictionaries.zh, { useReference: '应用官方 CLI 参考值', referenceHint: '同名模型默认采用 command-code@1.72.4 声明的能力，手动设置优先。这是 CLI 声明，不是 Provider API 实测结果。', inherit: '恢复继承的能力', unknown: '未知', unsupported: '此模型暂无 CLI 参考数据' })
   Object.assign(dictionaries.en, {
     addModel: 'Add model', modelId: 'Model ID', modelName: 'Display name (optional)', protocol: 'API protocol', chooseProtocol: 'Choose a protocol',
     fetchModels: 'Fetch model directory', fetching: 'Fetching…', fetched: 'Directory fetched. Select a new model, verify its protocol and limits, then add it.',
@@ -187,6 +192,7 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
       preferResponses: config.preferResponses === true,
       omitReasoningSummary: config.omitReasoningSummary !== false,
       zeroDataRetention: config.zeroDataRetention === true,
+      defaultMaxTokens: config.defaultMaxTokens === undefined ? '' : String(config.defaultMaxTokens),
       allModels: !config.models?.length,
       modelIds: (config.models ?? []).map(item => item.id),
       modelEdits: {},
@@ -205,6 +211,11 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
       try { availableIds = validateCustom(draft.customModels ?? []) }
       catch { return { ok: false, code: 'invalidCustom', keyStored } }
       if (!draft.allModels && (!draft.modelIds.length || draft.modelIds.some(id => !availableIds.has(id)))) return { ok: false, code: 'invalidModels', keyStored }
+      // The default output budget is a profile field, so it is validated with
+      // the same positive-integer rule the per-model limits use.
+      let defaultMaxTokens
+      try { defaultMaxTokens = tokenCount(draft.defaultMaxTokens ?? '') }
+      catch { return { ok: false, code: 'invalidCapabilities', keyStored } }
       const current = await load(remote, ns)
       if (!current.writable) return { ok: false, code: 'readOnly', keyStored }
       if (current.view.revision !== state.view.revision) return { ok: false, code: 'conflict', keyStored }
@@ -237,6 +248,7 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
         preferResponses: draft.preferResponses,
         omitReasoningSummary: draft.omitReasoningSummary,
         zeroDataRetention: draft.zeroDataRetention,
+        ...(defaultMaxTokens === undefined ? {} : { defaultMaxTokens }),
         models: draft.allModels ? [] : [...new Set(draft.modelIds)].map(id => previousModels.get(id) ?? { id }),
       }
       const response = await remote.settings.mutate(ns, [{ op: 'set', path: ['providers', ROUTE], value: config }], current.view.revision)
@@ -245,7 +257,7 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
     } catch { return { ok: false, code: keyStored ? 'partial' : 'saveFailed', keyStored } }
   }
   const css = `
-.cc-provider {color:var(--dsw-alias-label-primary);padding:14px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);font:inherit;display:flex;flex-direction:column;gap:12px}
+.cc-provider {color:var(--dsw-alias-label-primary);font:inherit;display:flex;flex-direction:column;gap:12px}
 .cc-provider h3 {font-size:14px;line-height:22px;font-weight:500;margin:0}
 .cc-provider p {margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
 .cc-provider .cc-field {display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:18px}
@@ -323,7 +335,7 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
           return h('details', { key: model.id, className: 'cc-model' },
             h('summary', null, `${model.name} · ${model.id}`),
             h('div', { className: 'cc-advanced' },
-              h('div', { className: 'cc-grid' }, field('contextWindow', 'context', model.contextWindow), field('maxTokens', 'output', state.config.defaultMaxTokens ?? 8192)),
+              h('div', { className: 'cc-grid' }, field('contextWindow', 'context', model.contextWindow), field('maxTokens', 'output', draft.defaultMaxTokens || DEFAULT_OUTPUT)),
               h('p', null, t('sizes')),
               h('div', { className: 'cc-grid' }, ['text', 'image'].map(input => h('label', { className: 'cc-check', key: input },
                 h('input', { type: 'checkbox', disabled, checked: value.input.includes(input), onChange: event => update({ input: event.target.checked ? [...new Set([...value.input, input])] : value.input.filter(item => item !== input) }) }), t(input)))),
@@ -363,9 +375,13 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
           } catch { setNotice({ code: 'loadFailed', error: true }) }
           finally { setBusy(false) }
         }
-        return h('form', { className: 'cc-provider', onSubmit: submit, 'aria-label': t('title'), 'aria-busy': busy },
-          h('style', null, css), h('h3', null, t('title')), h('p', null, t('help')),
+        return h('form', { className: 'cc-provider', onSubmit: submit, 'aria-label': props.provider?.displayName ?? t('title'), 'aria-busy': busy },
+          h('style', null, css),
+          notice ? h('p', { className: notice.error ? 'cc-error' : 'cc-success', role: notice.error ? 'alert' : 'status' }, t(notice.code)) : null,
           !state && !notice ? h('p', { role: 'status' }, t('loading')) : null,
+          // The card already heads the provider and hosts the generic editor, so
+          // this form stays behind one disclosure that starts closed.
+          h('details', { className: 'cc-panel' }, h('summary', null, t('title')),
           state ? h(React.Fragment, null,
             !state.writable ? h('p', null, t('readOnly')) : null,
             h('label', { className: 'cc-field' }, t('key'), h('input', {
@@ -377,6 +393,8 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
             !state.credential.writable ? h('p', null, t('locked')) : null,
             h('details', null, h('summary', null, t('advanced')), h('div', { className: 'cc-advanced' },
               h('label', { className: 'cc-field' }, t('endpoint'), h('input', { type: 'url', value: draft.baseURL, disabled, onChange: event => patch({ baseURL: event.target.value }) })),
+              h('label', { className: 'cc-field' }, t('defaultOutput'), h('input', { type: 'text', value: draft.defaultMaxTokens, disabled, placeholder: String(DEFAULT_OUTPUT), onChange: event => patch({ defaultMaxTokens: event.target.value }) })),
+              h('p', null, t('sizes')),
               check('preferResponses', 'responses'), check('omitReasoningSummary', 'summary'), check('zeroDataRetention', 'zdr'), check('allModels', 'all'),
               !draft.allModels ? h('label', { className: 'cc-field' }, t('models'), h('select', {
                 multiple: true, size: 7, value: draft.modelIds, disabled,
@@ -392,18 +410,18 @@ export function createClientPlugin(React, catalog, reference = { models: {} }) {
                 }, h('option', { value: '' }, t(newRows.length ? 'chooseFetched' : 'noNew')), ...newRows.map(row => h('option', { key: row.id, value: row.id }, row.name ? `${row.name} (${row.id})` : row.id)))) : null,
                 ...[['id', 'modelId'], ['name', 'modelName']].map(([field, label]) => h('label', { className: 'cc-field', key: field }, t(label), h('input', { type: 'text', value: newModel[field], disabled, onChange: event => setNewModel(previous => ({ ...previous, [field]: event.target.value })) }))),
                 h('label', { className: 'cc-field' }, t('protocol'), h('select', { value: newModel.api, disabled, onChange: event => setNewModel(previous => ({ ...previous, api: event.target.value })) }, h('option', { value: '' }, t('chooseProtocol')), ...protocols.map(api => h('option', { key: api, value: api }, api)))),
-                h('div', { className: 'cc-grid' }, ...[['contextWindow', 'context'], ['maxTokens', 'output']].map(([field, label]) => h('label', { className: 'cc-field', key: field }, t(label), h('input', { type: 'text', value: newModel[field], disabled, placeholder: field === 'maxTokens' ? String(state.config.defaultMaxTokens ?? 8192) : '', onChange: event => setNewModel(previous => ({ ...previous, [field]: event.target.value })) })))),
+                h('div', { className: 'cc-grid' }, ...[['contextWindow', 'context'], ['maxTokens', 'output']].map(([field, label]) => h('label', { className: 'cc-field', key: field }, t(label), h('input', { type: 'text', value: newModel[field], disabled, placeholder: field === 'maxTokens' ? String(draft.defaultMaxTokens || DEFAULT_OUTPUT) : '', onChange: event => setNewModel(previous => ({ ...previous, [field]: event.target.value })) })))),
                 h('p', null, t('sizes')),
                 h('button', { type: 'button', disabled, onClick: addModel }, t('addModel')),
               )),
               h('h3', null, t('capabilities')),
               ...allModels.filter(model => draft.allModels || draft.modelIds.includes(model.id)).map(modelCard),
             )),
+            h('div', { className: 'cc-actions' },
+              h('button', { type: 'button', disabled: busy || discovering, onClick: () => setReload(value => value + 1) }, t('refresh')),
+              h('button', { type: 'submit', className: 'cc-save', disabled: disabled || (!state?.credential.configured && !key.trim()) }, t(busy ? 'saving' : 'save')),
+            ),
           ) : null,
-          notice ? h('p', { className: notice.error ? 'cc-error' : 'cc-success', role: notice.error ? 'alert' : 'status' }, t(notice.code)) : null,
-          h('div', { className: 'cc-actions' },
-            h('button', { type: 'button', disabled: busy || discovering, onClick: () => setReload(value => value + 1) }, t('refresh')),
-            h('button', { type: 'submit', className: 'cc-save', disabled: disabled || (!state?.credential.configured && !key.trim()) }, t(busy ? 'saving' : 'save')),
           ),
         )
       }
